@@ -1,0 +1,508 @@
+﻿const header = document.getElementById("siteHeader");
+const navToggle = document.getElementById("navToggle");
+const navMenu = document.getElementById("siteNav");
+const revealItems = document.querySelectorAll(".reveal");
+const ANNOUNCEMENTS = [
+    {
+        id: "open-day-school-tour",
+        dateLabel: "Dates to be announced",
+        title: "Open Day and School Tour",
+        summary:
+            "Families are invited to guided classroom tours, leadership Q&A sessions, and admissions consultations.",
+        category: "events",
+        categoryLabel: "Events",
+        audience: "All Families",
+        priority: "high",
+        link: "contact.html#inquiry-form",
+        linkLabel: "Reserve Visit Slot"
+    },
+    
+];
+const PRIORITY_LABELS = {
+    critical: "Urgent",
+    high: "Priority",
+    normal: "Standard"
+};
+const PRIORITY_RANK = {
+    critical: 0,
+    high: 1,
+    normal: 2
+};
+
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+function formatAnnouncementDate(dateString) {
+    if (!dateString) {
+        return "Dates to be announced";
+    }
+    const date = new Date(`${dateString}T00:00:00`);
+    if (Number.isNaN(date.getTime())) {
+        return "Dates to be announced";
+    }
+    return new Intl.DateTimeFormat("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric"
+    }).format(date);
+}
+
+function sortedAnnouncements() {
+    return [...ANNOUNCEMENTS].sort((left, right) => {
+        const leftDate = left.date ? new Date(left.date).getTime() : Number.POSITIVE_INFINITY;
+        const rightDate = right.date ? new Date(right.date).getTime() : Number.POSITIVE_INFINITY;
+        const dateDiff = leftDate - rightDate;
+        if (dateDiff !== 0) {
+            return dateDiff;
+        }
+        return PRIORITY_RANK[left.priority] - PRIORITY_RANK[right.priority];
+    });
+}
+
+function renderAnnouncementCard(item) {
+    const formattedDate = item.dateLabel || formatAnnouncementDate(item.date);
+    const priorityLabel = PRIORITY_LABELS[item.priority] || PRIORITY_LABELS.normal;
+
+    return `<article class="announcement-card reveal is-visible" data-priority="${escapeHtml(item.priority)}">
+    <div class="announcement-meta-row">
+        <span class="announcement-date"><i class="fa-regular fa-calendar"></i>${escapeHtml(formattedDate)}</span>
+        <span class="announcement-priority is-${escapeHtml(item.priority)}">${escapeHtml(priorityLabel)}</span>
+    </div>
+    <h3>${escapeHtml(item.title)}</h3>
+    <p>${escapeHtml(item.summary)}</p>
+    <div class="announcement-tags">
+        <span class="announcement-tag category">${escapeHtml(item.categoryLabel)}</span>
+        <span class="announcement-tag audience">${escapeHtml(item.audience)}</span>
+    </div>
+    <a href="${escapeHtml(item.link)}" class="announcement-cta">${escapeHtml(item.linkLabel)} <i class="fa-solid fa-arrow-right"></i></a>
+</article>`;
+}
+
+function initAnnouncementStrip() {
+    const strip = document.getElementById("announcementStrip");
+    if (!strip) {
+        return;
+    }
+
+    const [topItem] = sortedAnnouncements();
+    if (!topItem) {
+        strip.hidden = true;
+        return;
+    }
+
+    strip.innerHTML = `<div class="announcement-strip-content">
+    <div class="announcement-strip-main">
+        <span class="announcement-strip-label"><i class="fa-solid fa-bullhorn"></i>Announcement</span>
+        <p class="announcement-strip-title">${escapeHtml(topItem.title)}</p>
+        <p class="announcement-strip-meta">${escapeHtml(topItem.dateLabel || formatAnnouncementDate(topItem.date))} | ${escapeHtml(
+        topItem.categoryLabel
+    )} | ${escapeHtml(topItem.audience)}</p>
+    </div>
+    <div class="announcement-strip-actions">
+        <a href="${escapeHtml(topItem.link)}" class="announcement-link-btn">${escapeHtml(topItem.linkLabel)}</a>
+        <a href="announcements.html" class="announcement-link-btn">All Updates</a>
+    </div>
+</div>`;
+}
+
+function initAnnouncementPreview() {
+    const previewContainer = document.getElementById("announcementPreview");
+    if (!previewContainer) {
+        return;
+    }
+
+    previewContainer.innerHTML = sortedAnnouncements()
+        .slice(0, 3)
+        .map((item) => renderAnnouncementCard(item))
+        .join("");
+}
+
+function initAnnouncementHub() {
+    const hub = document.getElementById("announcementHub");
+    if (!hub) {
+        return;
+    }
+
+    const filterButtons = Array.from(document.querySelectorAll("[data-announcement-filter]"));
+    const searchInput = document.getElementById("announcementSearch");
+    const resultCount = document.getElementById("announcementResultCount");
+    const emptyState = document.getElementById("announcementEmpty");
+    const announcements = sortedAnnouncements();
+    let activeFilter = "all";
+    let query = "";
+
+    function applyFilters() {
+        const normalizedQuery = query.trim().toLowerCase();
+        return announcements.filter((item) => {
+            const matchesCategory = activeFilter === "all" || item.category === activeFilter;
+            const haystack = `${item.title} ${item.summary} ${item.categoryLabel} ${item.audience}`.toLowerCase();
+            const matchesQuery = !normalizedQuery || haystack.includes(normalizedQuery);
+            return matchesCategory && matchesQuery;
+        });
+    }
+
+    function render() {
+        const filtered = applyFilters();
+        hub.innerHTML = filtered.map((item) => renderAnnouncementCard(item)).join("");
+
+        if (resultCount) {
+            const label = filtered.length === 1 ? "announcement" : "announcements";
+            resultCount.textContent = `${filtered.length} ${label} found.`;
+        }
+
+        if (emptyState) {
+            emptyState.hidden = filtered.length !== 0;
+        }
+    }
+
+    filterButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+            filterButtons.forEach((item) => item.classList.remove("is-active"));
+            button.classList.add("is-active");
+            activeFilter = button.dataset.announcementFilter || "all";
+            render();
+        });
+    });
+
+    if (searchInput) {
+        searchInput.addEventListener("input", () => {
+            query = searchInput.value;
+            render();
+        });
+    }
+
+    render();
+}
+
+function setCurrentYear() {
+    const yearNodes = document.querySelectorAll(".js-year");
+    const year = new Date().getFullYear();
+    yearNodes.forEach((node) => {
+        node.textContent = String(year);
+    });
+}
+
+function handleStickyHeader() {
+    if (!header) {
+        return;
+    }
+    header.classList.toggle("is-scrolled", window.scrollY > 8);
+}
+
+function closeMenu() {
+    if (!navMenu || !navToggle) {
+        return;
+    }
+    navMenu.classList.remove("is-open");
+    navToggle.setAttribute("aria-expanded", "false");
+}
+
+function initMobileNav() {
+    if (!navToggle || !navMenu) {
+        return;
+    }
+
+    navToggle.addEventListener("click", () => {
+        const isOpen = navMenu.classList.toggle("is-open");
+        navToggle.setAttribute("aria-expanded", String(isOpen));
+    });
+
+    navMenu.querySelectorAll("a").forEach((link) => {
+        link.addEventListener("click", closeMenu);
+    });
+
+    window.addEventListener("resize", () => {
+        if (window.innerWidth > 860) {
+            closeMenu();
+        }
+    });
+}
+
+function highlightActivePage() {
+    const currentPage = window.location.pathname.split("/").pop() || "index.html";
+    const navLinks = document.querySelectorAll(".site-nav a[data-page]");
+
+    navLinks.forEach((link) => {
+        const target = link.getAttribute("data-page");
+        if (target === currentPage) {
+            link.classList.add("is-active");
+            link.setAttribute("aria-current", "page");
+        } else {
+            link.classList.remove("is-active");
+            link.removeAttribute("aria-current");
+        }
+    });
+}
+
+function initRevealAnimation() {
+    if (!revealItems.length || !("IntersectionObserver" in window)) {
+        revealItems.forEach((item) => item.classList.add("is-visible"));
+        return;
+    }
+
+    const observer = new IntersectionObserver(
+        (entries, instance) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add("is-visible");
+                    instance.unobserve(entry.target);
+                }
+            });
+        },
+        { threshold: 0.16 }
+    );
+
+    revealItems.forEach((item) => observer.observe(item));
+}
+
+function isInternalPageLink(anchor) {
+    const href = anchor.getAttribute("href");
+    if (!href || href.startsWith("#") || anchor.hasAttribute("download")) {
+        return false;
+    }
+
+    const url = new URL(href, window.location.href);
+    return url.origin === window.location.origin;
+}
+
+function initPageTransition() {
+    const links = document.querySelectorAll("a[href]");
+    links.forEach((link) => {
+        if (!isInternalPageLink(link)) {
+            return;
+        }
+
+        link.addEventListener("click", (event) => {
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+                return;
+            }
+
+            const href = link.getAttribute("href");
+            if (!href || href.startsWith("#")) {
+                return;
+            }
+
+            event.preventDefault();
+            document.body.classList.add("is-leaving");
+            window.setTimeout(() => {
+                window.location.href = href;
+            }, 140);
+        });
+    });
+}
+
+function initNewsFeed() {
+    const feed = document.getElementById("newsFeed");
+    if (!feed) {
+        return;
+    }
+
+    const items = sortedAnnouncements()
+        .slice(0, 3)
+        .map((item) => ({
+            date: item.dateLabel || formatAnnouncementDate(item.date),
+            title: item.title,
+            body: item.summary
+        }));
+
+    window.setTimeout(() => {
+        feed.innerHTML = items
+            .map(
+                (item) => `<article class="news-card reveal is-visible">
+    <span class="meta">${item.date}</span>
+    <h3>${item.title}</h3>
+    <p>${item.body}</p>
+    <a href="announcements.html" class="announcement-cta">Read Full Update <i class="fa-solid fa-arrow-right"></i></a>
+</article>`
+            )
+            .join("");
+    }, 260);
+}
+
+function initFaqAccordion() {
+    const triggers = document.querySelectorAll(".faq-trigger");
+    if (!triggers.length) {
+        return;
+    }
+
+    triggers.forEach((trigger) => {
+        trigger.addEventListener("click", () => {
+            const parent = trigger.closest(".faq-item");
+            if (!parent) {
+                return;
+            }
+            parent.classList.toggle("is-open");
+            const expanded = parent.classList.contains("is-open");
+            trigger.setAttribute("aria-expanded", String(expanded));
+        });
+    });
+}
+
+function initProspectusForm() {
+    const form = document.getElementById("prospectusForm");
+    if (!form) {
+        return;
+    }
+
+    const status = document.getElementById("prospectusStatus");
+    const submitButton = form.querySelector("button[type='submit']");
+
+    form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (!submitButton || !status) {
+            return;
+        }
+
+        submitButton.classList.add("loading");
+        status.textContent = "Sending your prospectus request...";
+
+        window.setTimeout(() => {
+            submitButton.classList.remove("loading");
+            status.textContent = "Request received. Our admissions desk will contact you shortly.";
+            form.reset();
+        }, 900);
+    });
+}
+
+function initGalleryInteractions() {
+    const gallery = document.getElementById("studentGallery");
+    if (!gallery) {
+        return;
+    }
+
+    const filterButtons = document.querySelectorAll("[data-gallery-filter]");
+    const items = Array.from(gallery.querySelectorAll(".gallery-item"));
+    const loadMoreButton = document.getElementById("galleryLoadMore");
+    let activeFilter = "all";
+    let visibleCount = 6;
+
+    const lightbox = document.getElementById("lightboxOverlay");
+    const lightboxImage = document.getElementById("lightboxImage");
+    const lightboxClose = document.getElementById("lightboxClose");
+
+    function filteredItems() {
+        return items.filter((item) => {
+            if (activeFilter === "all") {
+                return true;
+            }
+            return item.dataset.category === activeFilter;
+        });
+    }
+
+    function renderGallery() {
+        const current = filteredItems();
+        items.forEach((item) => {
+            item.hidden = true;
+        });
+
+        current.slice(0, visibleCount).forEach((item) => {
+            item.hidden = false;
+        });
+
+        if (loadMoreButton) {
+            loadMoreButton.hidden = current.length <= visibleCount;
+        }
+    }
+
+    filterButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+            filterButtons.forEach((btn) => btn.classList.remove("is-active"));
+            button.classList.add("is-active");
+            activeFilter = button.dataset.galleryFilter || "all";
+            visibleCount = 6;
+            renderGallery();
+        });
+    });
+
+    if (loadMoreButton) {
+        loadMoreButton.addEventListener("click", () => {
+            visibleCount += 6;
+            renderGallery();
+        });
+    }
+
+    if (lightbox && lightboxImage && lightboxClose) {
+        gallery.querySelectorAll("img").forEach((img) => {
+            img.addEventListener("click", () => {
+                lightboxImage.src = img.currentSrc || img.src;
+                lightboxImage.alt = img.alt;
+                lightbox.classList.add("is-open");
+            });
+        });
+
+        lightboxClose.addEventListener("click", () => {
+            lightbox.classList.remove("is-open");
+            lightboxImage.src = "";
+        });
+
+        lightbox.addEventListener("click", (event) => {
+            if (event.target === lightbox) {
+                lightbox.classList.remove("is-open");
+                lightboxImage.src = "";
+            }
+        });
+    }
+
+    renderGallery();
+}
+
+function initTestimonialSlider() {
+    const slider = document.getElementById("testimonialSlider");
+    if (!slider) {
+        return;
+    }
+
+    const slides = Array.from(slider.querySelectorAll(".testimonial-slide"));
+    if (slides.length < 2) {
+        return;
+    }
+
+    let index = 0;
+    window.setInterval(() => {
+        slides[index].classList.remove("is-active");
+        index = (index + 1) % slides.length;
+        slides[index].classList.add("is-active");
+    }, 5200);
+}
+
+function initStaffDirectorySearch() {
+    const input = document.getElementById("directorySearch");
+    if (!input) {
+        return;
+    }
+
+    const rows = Array.from(document.querySelectorAll(".staff-row[data-search]"));
+    input.addEventListener("input", () => {
+        const query = input.value.trim().toLowerCase();
+        rows.forEach((row) => {
+            const haystack = (row.dataset.search || "").toLowerCase();
+            row.hidden = !haystack.includes(query);
+        });
+    });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    setCurrentYear();
+    highlightActivePage();
+    initMobileNav();
+    initAnnouncementStrip();
+    initAnnouncementPreview();
+    initAnnouncementHub();
+    initRevealAnimation();
+    initPageTransition();
+    initNewsFeed();
+    initFaqAccordion();
+    initProspectusForm();
+    initGalleryInteractions();
+    initTestimonialSlider();
+    initStaffDirectorySearch();
+    handleStickyHeader();
+    window.addEventListener("scroll", handleStickyHeader, { passive: true });
+});
+
